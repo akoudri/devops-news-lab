@@ -53,6 +53,45 @@ docker compose up --build
 
 L'application est accessible sur http://localhost:8080.
 
+## Solutions
+
+Les solutions complètes de chaque lab sont disponibles dans le dossier `k8s/` :
+
+```text
+k8s/
+├── 01-manual/                        # Solutions Lab 1 — Kubernetes natif
+│   ├── 01-secret.yaml                #   Secret Redis (Base64)
+│   ├── 02-configmap.yaml             #   ConfigMap backend
+│   ├── 03-redis.yaml                 #   StatefulSet + Service Redis
+│   ├── 04-backend.yaml               #   Deployment + ClusterIP backend
+│   ├── 05-frontend.yaml              #   Deployment + LoadBalancer frontend
+│   └── 06-cleaner.yaml               #   CronJob cleaner
+│
+├── 02-kustomize/                     # Solutions Lab 2 — Kustomize
+│   ├── base/                         #   Ressources communes
+│   │   ├── 03-redis.yaml
+│   │   ├── 04-backend.yaml
+│   │   ├── 05-frontend.yaml
+│   │   ├── 06-cleaner.yaml
+│   │   └── kustomization.yaml
+│   └── overlays/                     #   Variantes par environnement
+│       ├── dev/
+│       │   └── kustomization.yaml    #     1 replica, LOG_LEVEL=DEBUG, namespace dev-news
+│       └── prod/
+│           └── kustomization.yaml    #     3 backends, 2 frontends, resource limits, namespace prod-news
+│
+└── 03-helm/                          # Solutions Lab 3 — Helm
+    └── devops-news/                  #   Chart Helm
+        ├── Chart.yaml
+        ├── values.yaml
+        ├── charts/
+        └── templates/
+            ├── backend.yaml
+            ├── frontend.yaml
+            ├── redis.yaml
+            └── cleaner.yaml
+```
+
 ## Pré-requis
 
 - Docker et Docker Compose

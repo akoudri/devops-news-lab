@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-backend
+  labels:
+    app: {{ .Release.Name }}-backend
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-backend
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-backend
+    spec:
+      containers:
+      - name: api
+        image: "{{ .Values.images.repoAccount }}/devops-news-api:{{ .Values.images.tags.backend }}"
+        imagePullPolicy: {{ .Values.images.pullPolicy }}
+        ports:
+        - containerPort: 5000
+        env:
+        - name: REDIS_HOST
+          value: "{{ .Release.Name }}-redis"
+        - name: REDIS_PASSWORD
+          value: "{{ .Values.redis.password }}"
+        - name: LOG_LEVEL
+          value: "{{ .Values.backend.logLevel }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-backend
+spec:
+  type: {{ .Values.backend.serviceType }}
+  selector:
+    app: {{ .Release.Name }}-backend
+  ports:
+    - port: 5000
+      targetPort: 5000

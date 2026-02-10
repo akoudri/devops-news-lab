@@ -1,0 +1,29 @@
+# Configuration Globale
+global:
+  env: production
+
+# Configuration des Images
+images:
+  repoAccount: "pueblo2708"
+  pullPolicy: IfNotPresent
+  tags:
+    backend: v1
+    frontend: v1
+    cleaner: v1
+
+# Configuration du Backend
+backend:
+  replicas: 2
+  logLevel: "INFO"
+  serviceType: ClusterIP
+
+# Configuration du Frontend
+frontend:
+  replicas: 1
+  servicePort: 80
+
+# Configuration Redis (Persistence)
+redis:
+  enabled: true
+  password: "supersecret"
+  storage: 1Gi

@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: dev-news
+nameSuffix: -dev
+
+commonLabels:
+  env: dev
+
+configMapGenerator:
+  - name: backend-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=DEBUG
+
+patches:
+  - target:
+      kind: Deployment
+      name: backend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
