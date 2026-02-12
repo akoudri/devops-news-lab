@@ -7,9 +7,9 @@ images:
   repoAccount: "pueblo2708"
   pullPolicy: IfNotPresent
   tags:
-    backend: v1
-    frontend: v1
-    cleaner: v1
+    backend: latest
+    frontend: latest
+    cleaner: latest
 
 # Configuration du Backend
 backend:
@@ -25,5 +25,6 @@ frontend:
 # Configuration Redis (Persistence)
 redis:
   enabled: true
+  port: "6379"
   password: "supersecret"
   storage: 1Gi
