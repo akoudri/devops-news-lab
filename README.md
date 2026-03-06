@@ -51,10 +51,11 @@ Formation approfondie à Helm, de la découverte au GitOps avec Argo CD. Voir le
 | [Lab 3](labs/helm/lab3.md) | Chart from scratch | 1h30 - 2h00 | Créer de zéro le chart Helm complet de DevOps-News (lab autonome avec solution en annexe) |
 | [Lab 4](labs/helm/lab4.md) | Templating avancé | 1h15 - 1h30 | Helpers, conditions, boucles `range`, scope `with`, pipelines et fichiers externes |
 | [Lab 5](labs/helm/lab5.md) | Qualité & Sécurité | 1h15 - 1h30 | Schéma de validation, NOTES.txt, tests Helm, hooks de cycle de vie et gestion des secrets |
-| [Lab 6](labs/helm/lab6.md) | Intégration avec Kustomize | 1h00 - 1h15 | Post-rendering et approche hybride Helm + Kustomize |
-| [Lab 7](labs/helm/lab7.md) | GitOps avec Argo CD | 1h15 - 1h30 | Déploiement déclaratif, self-healing, drift detection et secrets GitOps-compatible |
+| [Lab 6](labs/helm/lab6.md) | Tests Unitaires | 1h15 - 1h30 | Tests Unitaires avec HelmTest |
+| [Lab 7](labs/helm/lab7.md) | Intégration avec Kustomize | 1h00 - 1h15 | Post-rendering et approche hybride Helm + Kustomize |
+| [Lab 8](labs/helm/lab8.md) | GitOps avec Argo CD | 1h15 - 1h30 | Déploiement déclaratif, self-healing, drift detection et secrets GitOps-compatible |
 
-**Durée totale estimée :** 8h - 10h
+**Durée totale estimée :** 9h - 10h
 
 ## Démarrage rapide
 
