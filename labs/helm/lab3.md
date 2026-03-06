@@ -8,7 +8,7 @@ Ce lab est **autonome** : les consignes décrivent ce que le chart doit produire
 
 **Module couvert :** 4 (Développement de Charts from scratch)
 
-**Temps estimé :** 1h30 - 2h00
+**Temps estimé :** 2h00 - 2h30
 
 ---
 
@@ -345,6 +345,231 @@ kubectl get all -n devops-news-lab3-bis
 helm uninstall news -n devops-news-lab3
 helm uninstall news-v2 -n devops-news-lab3-bis
 kubectl delete namespace devops-news-lab3 devops-news-lab3-bis
+```
+
+---
+
+## Étape 8 : Gestion des dépendances — Redis comme sous-chart
+
+Jusqu'ici, vous avez géré Redis avec vos propres templates (StatefulSet + Service + Secret). C'est une approche valide pour apprendre, mais en production on préfère déléguer les composants tiers à des charts éprouvés et maintenus par la communauté.
+
+Helm gère cela via le mécanisme de **dépendances** déclaré dans `Chart.yaml`.
+
+### 8.1 Comprendre les deux approches
+
+| Approche | Avantage | Inconvénient |
+|---|---|---|
+| Templates maison (Labs 3-5) | Contrôle total, pédagogique | Maintenance à votre charge |
+| Sous-chart communautaire | Maintenu, sécurisé, éprouvé | Moins de contrôle fin |
+
+### 8.2 Déclarer la dépendance dans `Chart.yaml`
+
+Ajoutez le bloc `dependencies` à la fin de `devops-news/Chart.yaml` :
+
+```yaml
+dependencies:
+  - name: redis
+    version: "19.x.x"           # Contrainte SemVer — accepte toutes les 19.x.x
+    repository: "oci://registry-1.docker.io/bitnamicharts"
+    condition: redis.enabled     # La même clé que votre values.yaml existant
+    alias: redis                 # Nom utilisé pour accéder aux values du sous-chart
+```
+
+> **`condition`** est la clé : si `redis.enabled: false` dans les values, le sous-chart entier est ignoré lors du déploiement. C'est le même paramètre que celui déjà défini dans votre `values.yaml`.
+
+### 8.3 Résoudre les dépendances
+
+```bash
+# Télécharge le chart bitnami/redis dans devops-news/charts/
+helm dependency update ./devops-news
+
+# Vérifier ce qui a été téléchargé
+ls devops-news/charts/
+# → redis-19.x.x.tgz
+
+# Inspecter le fichier de verrouillage généré
+cat devops-news/Chart.lock
+```
+
+Le fichier `Chart.lock` est l'équivalent d'un `package-lock.json` : il **fige la version exacte** résolue (`19.6.4` par exemple) pour garantir que tous les membres de l'équipe et tous les déploiements utilisent exactement le même sous-chart.
+
+> **Règle d'or :** `Chart.lock` doit être commité dans Git. Le dossier `charts/` ne doit **pas** l'être (ajoutez-le dans `.helmignore`).
+
+```bash
+echo "charts/" >> devops-news/.helmignore
+```
+
+### 8.4 Adapter `values.yaml` pour le sous-chart
+
+Le sous-chart Bitnami Redis s'attend à recevoir sa configuration sous la clé `redis` (ou l'alias déclaré). Remplacez le bloc `redis` de votre `values.yaml` par :
+
+```yaml
+# ─────────────────────────────────────────
+# Redis — géré par le sous-chart bitnami/redis
+# ─────────────────────────────────────────
+redis:
+  enabled: true
+  # Paramètres natifs du chart bitnami/redis
+  auth:
+    enabled: true
+    password: "supersecret"
+  master:
+    persistence:
+      storageClass: "standard-rwo"
+      size: "1Gi"
+  replica:
+    replicaCount: 0              # Pas de réplicas en mode standalone
+  architecture: standalone
+```
+
+### 8.5 Adapter les templates backend et cleaner
+
+Le sous-chart Bitnami crée son propre Service Redis. Son nom suit la convention `<release>-redis-master`. Mettez à jour la variable `REDIS_HOST` dans `templates/backend.yaml` et `templates/cleaner.yaml` :
+
+```yaml
+- name: REDIS_HOST
+  value: "{{ .Release.Name }}-redis-master"
+```
+
+Et pour le Secret, Bitnami crée son propre Secret nommé `<release>-redis`. Remplacez la référence au `secretKeyRef` :
+
+```yaml
+- name: REDIS_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Release.Name }}-redis
+      key: redis-password          # Clé utilisée par le chart Bitnami
+```
+
+Vous pouvez maintenant supprimer vos fichiers `templates/redis.yaml` et `templates/redis-secret.yaml` — ils sont remplacés par le sous-chart.
+
+### 8.6 Valider et déployer
+
+```bash
+# Lint — Helm résout automatiquement les templates du sous-chart
+helm lint ./devops-news
+
+# Dry-run pour voir les ressources générées par le sous-chart
+helm install news ./devops-news \
+  --namespace devops-news-lab3-deps \
+  --create-namespace \
+  --dry-run --debug 2>&1 | grep "kind:"
+
+# Installation réelle
+helm install news ./devops-news \
+  --namespace devops-news-lab3-deps \
+  --create-namespace
+```
+
+Observez que Kubernetes crée maintenant un `StatefulSet` Redis géré par Bitnami, avec des `readinessProbe`, `livenessProbe` et une configuration TLS optionnelle — sans que vous ayez écrit une seule ligne de YAML Redis.
+
+```bash
+# Lister les dépendances résolues
+helm dependency list ./devops-news
+
+kubectl get all -n devops-news-lab3-deps
+```
+
+### 8.7 Nettoyage de cette étape
+
+```bash
+helm uninstall news -n devops-news-lab3-deps
+kubectl delete namespace devops-news-lab3-deps
+```
+
+---
+
+## Étape 9 : Publication sur un registre OCI
+
+Un chart packagé en `.tgz` n'a de valeur que s'il est **distribué**. Nous allons publier le chart sur **GitHub Packages** (registre OCI gratuit), la solution la plus directe pour une équipe utilisant GitHub.
+
+> **Qu'est-ce qu'un registre OCI pour Helm ?** Depuis Helm 3.8, les charts peuvent être stockés et distribués via n'importe quel registre compatible OCI (le même protocole que Docker Hub). Plus besoin d'un serveur de repo Helm dédié — on réutilise l'infrastructure Docker existante.
+
+### 9.1 Préparer le package
+
+```bash
+# Incrémenter la version du chart avant publication
+# Dans Chart.yaml : version: 0.1.0 → 0.2.0
+sed -i 's/^version: 0.1.0/version: 0.2.0/' devops-news/Chart.yaml
+
+# Créer l'archive
+helm package ./devops-news
+ls -la devops-news-0.2.0.tgz
+```
+
+### 9.2 S'authentifier sur GitHub Packages
+
+```bash
+# Créer un Personal Access Token GitHub avec le scope write:packages
+# https://github.com/settings/tokens
+
+export GITHUB_TOKEN=<votre-token>
+export GITHUB_USER=<votre-username>
+
+echo $GITHUB_TOKEN | helm registry login ghcr.io \
+  --username $GITHUB_USER \
+  --password-stdin
+```
+
+### 9.3 Pousser le chart
+
+```bash
+helm push devops-news-0.2.0.tgz oci://ghcr.io/$GITHUB_USER/helm-charts
+```
+
+La sortie doit ressembler à :
+```
+Pushed: ghcr.io/<user>/helm-charts/devops-news:0.2.0
+Digest: sha256:a3f2...
+```
+
+### 9.4 Inspecter le chart publié
+
+```bash
+# Afficher les métadonnées du chart distant (sans l'installer)
+helm show chart oci://ghcr.io/$GITHUB_USER/helm-charts/devops-news --version 0.2.0
+
+# Afficher les valeurs configurables
+helm show values oci://ghcr.io/$GITHUB_USER/helm-charts/devops-news --version 0.2.0
+```
+
+### 9.5 Installer directement depuis le registre OCI
+
+La puissance du registre OCI : n'importe quelle équipe peut maintenant installer votre chart **sans cloner votre dépôt Git** :
+
+```bash
+kubectl create namespace devops-news-oci
+
+helm install news-oci \
+  oci://ghcr.io/$GITHUB_USER/helm-charts/devops-news \
+  --version 0.2.0 \
+  --namespace devops-news-oci
+```
+
+### 9.6 Sécuriser avec un Digest (Helm v4 — bonne pratique)
+
+En spécifiant un tag (`:0.2.0`), vous vous exposez à une éventuelle mutation du tag. La pratique la plus sûre est d'utiliser le **digest SHA256**, immuable par définition :
+
+```bash
+# Récupérer le digest
+DIGEST=$(helm show chart oci://ghcr.io/$GITHUB_USER/helm-charts/devops-news \
+  --version 0.2.0 2>/dev/null | grep -i digest || \
+  echo "sha256:$(helm pull oci://ghcr.io/$GITHUB_USER/helm-charts/devops-news \
+  --version 0.2.0 --prov 2>/dev/null; sha256sum devops-news-0.2.0.tgz | cut -d' ' -f1)")
+
+# Installation par digest (immuable — garantit exactement ce qui a été publié)
+helm install news-pinned \
+  oci://ghcr.io/$GITHUB_USER/helm-charts/devops-news@$DIGEST \
+  --namespace devops-news-oci
+```
+
+### 9.7 Nettoyage de cette étape
+
+```bash
+helm uninstall news-oci -n devops-news-oci
+helm uninstall news-pinned -n devops-news-oci
+kubectl delete namespace devops-news-oci
+helm registry logout ghcr.io
 ```
 
 ---

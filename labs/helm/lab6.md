@@ -1,369 +1,583 @@
-# Lab Helm 6 — Intégration avec Kustomize
+# Lab Helm 6 — Tests Unitaires avec `helm-unittest`
 
 ## 🎯 Objectif
 
-Dans ce lab, vous allez explorer deux scénarios complémentaires de collaboration entre Helm et Kustomize : le **post-rendering** (patcher la sortie d'un chart tiers en temps réel) et l'**approche hybride** (Helm génère la base, Kustomize gère les overlays d'environnement).
+Un chart Helm sans tests est un chart non maintenable. Dans ce lab, vous allez écrire une suite de tests unitaires complète pour le chart `devops-news` : tester les cas nominaux, les cas limites, les conditions (`if`) et les boucles (`range`). Ces tests s'intègrent ensuite dans un pipeline CI/CD pour garantir que chaque modification du chart ne casse pas le comportement attendu.
 
-**Module couvert :** 7 (Intégration avec Kustomize)
+**Module couvert :** 6 (Qualité & Sécurité — `helm-unittest`)
 
-**Temps estimé :** 1h00 - 1h15
+**Temps estimé :** 1h15 - 1h30
 
 ---
 
 ## 📋 Pré-requis
 
-1. Avoir terminé les Labs 3 et 4.
-2. `kustomize` installé :
-```bash
-curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-sudo mv kustomize /usr/local/bin/
-kustomize version
-```
-3. Se placer dans le dossier : `cd helm/`
+1. Avoir terminé le Lab 4 (chart `devops-news-v2` avec helpers et templating avancé).
+2. Se placer dans le dossier : `cd helm/`
 
 ---
 
-## Contexte : Quand choisir quoi ?
+## Contexte : Pourquoi tester les templates ?
 
-| Situation | Outil recommandé |
-|-----------|-----------------|
-| Vous créez votre propre application | **Helm from scratch** (Labs 3-5) |
-| Vous utilisez un chart communautaire et voulez le personnaliser légèrement | **Helm + Post-rendering Kustomize** |
-| Vous gérez plusieurs environnements avec des différences mineures | **Helm values files** (Lab 2) |
-| Les différences entre environnements sont structurelles (ajout/suppression de ressources) | **Kustomize overlays** sur la sortie Helm |
+Un template Helm est du code. Comme tout code, il peut contenir des régressions :
 
----
+- Vous ajoutez une condition `{{- if }}` et elle casse le rendu Redis quand `redis.enabled: false`.
+- Vous refactorisez un helper et le nom des ressources change silencieusement.
+- Un collègue modifie une valeur par défaut dans `values.yaml` et deux pods perdent leur variable d'environnement `REDIS_PASSWORD`.
 
-## Étape 1 : Le problème du chart tiers non personnalisable
-
-Imaginons que votre entreprise impose une annotation de sécurité sur **tous** les Pods déployés dans le cluster, pour le SIEM (Security Information and Event Management) :
-
-```yaml
-annotations:
-  security.corporate.com/scanned: "true"
-  security.corporate.com/team: "platform"
-```
-
-Le chart `devops-news-v3` ne propose pas cette annotation dans son `values.yaml`. Plutôt que de modifier le chart (et perdre les mises à jour futures), nous allons utiliser Kustomize comme **post-renderer**.
+`helm-unittest` permet de **piéger ces régressions avant le déploiement**, sans cluster, en quelques secondes.
 
 ---
 
-## Étape 2 : Le Post-Renderer Helm + Kustomize
-
-Le post-renderer est un mécanisme qui intercepte le YAML généré par Helm **avant** qu'il soit envoyé à Kubernetes, pour le modifier à la volée.
-
-```
-helm install ... --post-renderer ./script.sh
-                         │
-                Helm génère le YAML
-                         │
-              Helm passe le YAML via STDIN
-              au script post-renderer
-                         │
-              Le script modifie le YAML
-              (ici via Kustomize)
-                         │
-              Helm envoie le YAML modifié
-              à l'API Server Kubernetes
-```
-
-### 2.1 Créer la structure Kustomize
+## Étape 1 : Installation du plugin
 
 ```bash
-mkdir -p helm/post-render/patches
+helm plugin install https://github.com/helm-unittest/helm-unittest.git
 ```
 
-### 2.2 Créer le `kustomization.yaml`
-
-Créez `helm/post-render/kustomization.yaml` :
-
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-# Kustomize va lire les ressources depuis STDIN (envoyé par Helm)
-resources:
-  - all.yaml
-
-# Patch pour ajouter les annotations de sécurité sur tous les Deployments
-patches:
-  - path: patches/security-annotations.yaml
-    target:
-      kind: Deployment
-  - path: patches/security-annotations.yaml
-    target:
-      kind: StatefulSet
-  - path: patches/security-annotations.yaml
-    target:
-      kind: CronJob
-```
-
-### 2.3 Créer le patch d'annotations
-
-Créez `helm/post-render/patches/security-annotations.yaml` :
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: placeholder  # Sera ignoré — c'est le `target` du kustomization.yaml qui cible
-spec:
-  template:
-    metadata:
-      annotations:
-        security.corporate.com/scanned: "true"
-        security.corporate.com/team: "platform"
-        security.corporate.com/scan-date: "2026-01-01"
-```
-
-### 2.4 Créer le script wrapper
-
-Helm ne sait pas parler directement à Kustomize (Helm envoie un flux YAML continu, Kustomize attend un fichier). Nous avons besoin d'un script intermédiaire.
-
-Créez `helm/post-render/kustomize-wrapper.sh` :
+Vérifier l'installation :
 
 ```bash
-#!/bin/bash
-# Ce script reçoit le YAML de Helm via STDIN,
-# le sauvegarde dans un fichier temporaire,
-# le passe à Kustomize, puis envoie le résultat vers STDOUT.
-
-set -e
-
-# Répertoire de ce script
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Sauvegarder le YAML de Helm dans un fichier temporaire
-cat > "${SCRIPT_DIR}/all.yaml"
-
-# Lancer Kustomize et envoyer le résultat vers STDOUT (récupéré par Helm)
-kustomize build "${SCRIPT_DIR}"
+helm unittest --help
 ```
 
+> **Note CI/CD :** Dans un pipeline GitHub Actions ou GitLab CI, `helm-unittest` est disponible comme image Docker officielle : `helmunittest/helm-unittest`. Aucune installation manuelle requise.
+
+---
+
+## Étape 2 : Structure des tests
+
+`helm-unittest` cherche les fichiers de test dans le dossier `tests/` à la racine du chart, avec le suffixe `_test.yaml`.
+
 ```bash
-chmod +x helm/post-render/kustomize-wrapper.sh
+mkdir -p devops-news-v2/tests/
 ```
 
-### 2.5 Tester le post-renderer
+Structure finale visée :
 
-```bash
-kubectl create namespace devops-news-lab6
-
-helm install news-patched ./devops-news-v3 \
-  --namespace devops-news-lab6 \
-  --post-renderer ./post-render/kustomize-wrapper.sh \
-  --dry-run 2>&1 | grep -A 5 "security.corporate.com"
 ```
-
-Vous devriez voir les annotations de sécurité dans le YAML généré.
-
-### 2.6 Déploiement réel
-
-```bash
-helm install news-patched ./devops-news-v3 \
-  --namespace devops-news-lab6 \
-  --post-renderer ./post-render/kustomize-wrapper.sh
-```
-
-Vérifiez que les annotations sont bien présentes sur les Pods :
-
-```bash
-kubectl get pods -n devops-news-lab6 -o jsonpath='{.items[0].metadata.annotations}' | python3 -m json.tool
+devops-news-v2/
+└── tests/
+    ├── backend_test.yaml
+    ├── frontend_test.yaml
+    ├── redis_test.yaml
+    └── cleaner_test.yaml
 ```
 
 ---
 
-## Étape 3 : L'approche hybride — Helm base + Kustomize overlays
+## Étape 3 : Anatomie d'un test
 
-Dans ce scénario, Helm génère le YAML de base que Kustomize enrichit via des overlays d'environnement. C'est utile quand les différences entre environnements sont **structurelles** (ex : ajout d'un sidecar en prod, suppression d'un service en dev).
-
-### 3.1 Générer la base avec `helm template`
-
-```bash
-mkdir -p helm/kustomize-hybrid/base
-
-# Helm génère le manifest de base et le sauvegarde
-helm template devops-news ./devops-news-v3 \
-  --namespace devops-news-lab6 \
-  > helm/kustomize-hybrid/base/all.yaml
-```
-
-### 3.2 Créer le `kustomization.yaml` de base
-
-Créez `helm/kustomize-hybrid/base/kustomization.yaml` :
+Chaque fichier de test est composé de **suites** (`suite`), contenant des **cas de test** (`tests`). Voici le squelette :
 
 ```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
+suite: "Nom de la suite de tests"
 
-resources:
-  - all.yaml
+# Valeurs appliquées à TOUS les tests de cette suite (optionnel)
+values:
+  - ../values.yaml
+
+tests:
+  - it: "Description du test (phrase complète)"
+    # Valeurs spécifiques à CE test (écrasent les valeurs du haut)
+    set:
+      backend.replicas: 3
+    # Les assertions à vérifier
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
 ```
 
-### 3.3 Créer l'overlay Dev
+Les **types d'assertion** disponibles :
 
-```bash
-mkdir -p helm/kustomize-hybrid/overlays/dev
-```
+| Assertion | Description |
+|---|---|
+| `equal` | La valeur au chemin donné est exactement égale |
+| `notEqual` | La valeur au chemin donné est différente |
+| `matchRegex` | La valeur correspond à une regex |
+| `contains` | La liste contient l'élément donné |
+| `notContains` | La liste ne contient pas l'élément donné |
+| `isNull` | Le champ est absent ou null |
+| `isNotNull` | Le champ est présent et non null |
+| `isKind` | La ressource est du type Kubernetes attendu |
+| `hasDocuments` | Le nombre de documents YAML générés est correct |
+| `failedTemplate` | Le template doit échouer (test d'erreur) |
 
-Créez `helm/kustomize-hybrid/overlays/dev/kustomization.yaml` :
+---
+
+## Étape 4 : Tests du Backend
+
+Créez `devops-news-v2/tests/backend_test.yaml` :
 
 ```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
+suite: "Backend — Deployment et Service"
 
-resources:
-  - ../../base
+templates:
+  - "templates/backend.yaml"
 
-namespace: devops-news-dev
+tests:
 
-commonLabels:
-  env: dev
+  # ── Cas nominal ──────────────────────────────────────────────────
+  - it: "doit créer un Deployment et un Service"
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: Deployment
+        documentIndex: 0
+      - isKind:
+          of: Service
+        documentIndex: 1
 
-patches:
-  # Réduire les réplicas en dev
-  - target:
-      kind: Deployment
-      name: devops-news-backend
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 1
-  - target:
-      kind: Deployment
-      name: devops-news-frontend
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 1
-  # Passer le service frontend en ClusterIP (pas de LoadBalancer en dev)
-  - target:
-      kind: Service
-      name: devops-news-frontend
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: ClusterIP
+  - it: "le Deployment doit avoir le bon nombre de réplicas par défaut"
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+        documentIndex: 0
+
+  - it: "le nom du Deployment doit inclure le nom de la release"
+    release:
+      name: my-release
+    asserts:
+      - equal:
+          path: metadata.name
+          value: my-release-backend
+        documentIndex: 0
+
+  # ── Variables d'environnement ────────────────────────────────────
+  - it: "doit injecter REDIS_HOST avec le nom de la release"
+    release:
+      name: production
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOST
+            value: "production-redis"
+        documentIndex: 0
+
+  - it: "doit injecter LOG_LEVEL depuis les values"
+    set:
+      backend.logLevel: "DEBUG"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: "DEBUG"
+        documentIndex: 0
+
+  - it: "doit référencer le Secret Redis pour REDIS_PASSWORD"
+    release:
+      name: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-redis-secret
+                key: password
+        documentIndex: 0
+
+  # ── Image Docker ─────────────────────────────────────────────────
+  - it: "doit construire le nom d'image avec le compte et le tag"
+    set:
+      images.repoAccount: "myorg"
+      images.tags.backend: "v2.1"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "myorg/devops-news-api:v2.1"
+        documentIndex: 0
+
+  # ── Surcharge des réplicas ───────────────────────────────────────
+  - it: "doit respecter la valeur de réplicas surchargée"
+    set:
+      backend.replicas: 5
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 5
+        documentIndex: 0
+
+  # ── Service ──────────────────────────────────────────────────────
+  - it: "le Service doit être de type ClusterIP par défaut"
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+        documentIndex: 1
+
+  - it: "le Service doit exposer le bon port"
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 5000
+        documentIndex: 1
+
+  # ── Variables d'environnement supplémentaires (extraEnv) ─────────
+  - it: "doit injecter les extraEnv quand elles sont définies"
+    set:
+      backend.extraEnv:
+        - name: FEATURE_X
+          value: "enabled"
+        - name: SENTRY_DSN
+          value: "https://sentry.io/123"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FEATURE_X
+            value: "enabled"
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SENTRY_DSN
+            value: "https://sentry.io/123"
+        documentIndex: 0
+
+  - it: "ne doit pas avoir d'extraEnv quand la liste est vide"
+    set:
+      backend.extraEnv: []
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FEATURE_X
+            value: "enabled"
+        documentIndex: 0
 ```
 
-### 3.4 Créer l'overlay Prod
+### Lancer les tests du backend
 
 ```bash
-mkdir -p helm/kustomize-hybrid/overlays/prod
+helm unittest devops-news-v2 --file tests/backend_test.yaml
 ```
 
-Créez `helm/kustomize-hybrid/overlays/prod/kustomization.yaml` :
+Tous les tests doivent passer. Corrigez les éventuels échecs avant de continuer.
+
+---
+
+## Étape 5 : Tests Redis (conditions)
+
+Créez `devops-news-v2/tests/redis_test.yaml` :
 
 ```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
+suite: "Redis — StatefulSet, Service et Secret"
 
-resources:
-  - ../../base
+tests:
 
-namespace: devops-news-prod
+  # ── Activation conditionnelle ────────────────────────────────────
+  - it: "doit créer le StatefulSet Redis quand redis.enabled est true"
+    template: "templates/redis.yaml"
+    set:
+      redis.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2    # Service + StatefulSet
+      - isKind:
+          of: StatefulSet
+        documentIndex: 1
 
-commonLabels:
-  env: prod
-  tier: gold
+  - it: "ne doit rien générer quand redis.enabled est false"
+    template: "templates/redis.yaml"
+    set:
+      redis.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
 
-patches:
-  # Haute disponibilité en prod
-  - target:
-      kind: Deployment
-      name: devops-news-backend
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 3
-      - op: add
-        path: /spec/template/spec/containers/0/resources
-        value:
-          limits:
-            cpu: "500m"
-            memory: "256Mi"
-          requests:
-            cpu: "100m"
-            memory: "128Mi"
-  - target:
-      kind: Deployment
-      name: devops-news-frontend
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 2
+  - it: "ne doit pas créer le Secret Redis quand redis.enabled est false"
+    template: "templates/redis-secret.yaml"
+    set:
+      redis.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── Configuration du stockage ────────────────────────────────────
+  - it: "doit utiliser la taille de stockage configurée"
+    template: "templates/redis.yaml"
+    set:
+      redis.enabled: true
+      redis.storage: "5Gi"
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: "5Gi"
+        documentIndex: 1
+
+  - it: "doit utiliser la storageClassName configurée"
+    template: "templates/redis.yaml"
+    set:
+      redis.enabled: true
+      redis.storageClassName: "premium-rwo"
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: "premium-rwo"
+        documentIndex: 1
+
+  # ── Secret ───────────────────────────────────────────────────────
+  - it: "le Secret doit encoder le mot de passe en base64"
+    template: "templates/redis-secret.yaml"
+    set:
+      redis.enabled: true
+      redis.password: "mysecretpassword"
+    asserts:
+      - equal:
+          path: data.password
+          # "mysecretpassword" encodé en base64
+          value: "bXlzZWNyZXRwYXNzd29yZA=="
 ```
 
-### 3.5 Prévisualiser les overlays
-
 ```bash
-# Preview dev
-kubectl kustomize helm/kustomize-hybrid/overlays/dev | grep -E "replicas:|type: "
-
-# Preview prod
-kubectl kustomize helm/kustomize-hybrid/overlays/prod | grep -E "replicas:|resources:"
-```
-
-### 3.6 Déploiement des deux environnements
-
-```bash
-kubectl create namespace devops-news-dev
-kubectl create namespace devops-news-prod
-
-kubectl apply -k helm/kustomize-hybrid/overlays/dev
-kubectl apply -k helm/kustomize-hybrid/overlays/prod
-
-# Comparer les pods
-echo "=== DEV ===" && kubectl get pods -n devops-news-dev
-echo "=== PROD ===" && kubectl get pods -n devops-news-prod
+helm unittest devops-news-v2 \
+  --file tests/redis_test.yaml
 ```
 
 ---
 
-## Étape 4 : Réflexion — Helm vs Kustomize vs Hybride
+## Étape 6 : Tests du Cleaner (CronJob conditionnel)
 
-**Exercice de réflexion :** Pour chaque scénario suivant, indiquez quelle approche vous utiliseriez et pourquoi.
+Créez `devops-news-v2/tests/cleaner_test.yaml` :
 
-| Scénario | Approche recommandée | Justification |
-|----------|---------------------|---------------|
-| Vous distribuez votre app à 10 clients différents | ? | |
-| Vous déployez Prometheus (chart communautaire) et devez ajouter un label propriétaire | ? | |
-| Vous avez Dev/Staging/Prod avec des différences uniquement de réplicas et LOG_LEVEL | ? | |
-| Vous avez Dev/Prod avec un sidecar Vault Agent uniquement en Prod | ? | |
+```yaml
+suite: "Cleaner — CronJob conditionnel"
 
-> **Réponses attendues :** Helm from scratch / Post-renderer / Values files / Kustomize overlay
+templates:
+  - "templates/cleaner.yaml"
+
+tests:
+
+  - it: "doit créer le CronJob quand cleaner.enabled est true"
+    set:
+      cleaner.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CronJob
+
+  - it: "ne doit rien générer quand cleaner.enabled est false"
+    set:
+      cleaner.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "doit utiliser le schedule configuré"
+    set:
+      cleaner.enabled: true
+      cleaner.schedule: "0 3 * * *"
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+
+  - it: "doit injecter MAX_AGE_SECONDS depuis les values"
+    set:
+      cleaner.enabled: true
+      cleaner.maxAgeSeconds: 7200
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: MAX_AGE_SECONDS
+            value: "7200"
+
+  - it: "doit avoir restartPolicy à OnFailure"
+    set:
+      cleaner.enabled: true
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.restartPolicy
+          value: OnFailure
+```
 
 ---
 
-## Étape 5 : Mise en garde — quand arrêter Kustomize
+## Étape 7 : Tests des Labels (helpers)
 
-Si vous vous retrouvez à patcher plus de 50% du YAML généré par Helm via Kustomize, c'est un signal fort : il est temps de créer votre propre chart from scratch (cf. Lab 3) plutôt que de s'appuyer sur un chart tiers.
+Ce test vérifie que votre `_helpers.tpl` produit les labels standards corrects sur toutes les ressources.
+
+Créez `devops-news-v2/tests/labels_test.yaml` :
+
+```yaml
+suite: "Labels standards — vérification des helpers"
+
+tests:
+
+  - it: "le Deployment backend doit avoir les labels app.kubernetes.io standards"
+    template: "templates/backend.yaml"
+    release:
+      name: myapp
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: backend
+        documentIndex: 0
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: myapp
+        documentIndex: 0
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+        documentIndex: 0
+
+  - it: "le nom du Deployment doit être release-backend (trunc à 63 chars)"
+    template: "templates/backend.yaml"
+    release:
+      # Nom volontairement long pour tester le trunc
+      name: "this-is-a-very-long-release-name-that-exceeds-the-limit"
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        documentIndex: 0
+
+  - it: "les selectorLabels doivent correspondre entre Deployment et Service"
+    template: "templates/backend.yaml"
+    release:
+      name: test
+    asserts:
+      # Les selector du Service doivent cibler les labels du pod
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: backend
+        documentIndex: 1
+      - equal:
+          path: spec.selector["app.kubernetes.io/instance"]
+          value: test
+        documentIndex: 1
+```
+
+---
+
+## Étape 8 : Lancer la suite complète
 
 ```bash
-# Mesurer grossièrement le ratio patch/total
-TOTAL=$(helm template test ./devops-news-v3 | wc -l)
-PATCHED=$(diff \
-  <(helm template test ./devops-news-v3) \
-  <(helm template test ./devops-news-v3 --post-renderer ./post-render/kustomize-wrapper.sh) \
-  | grep "^>" | wc -l)
-echo "Lignes patchées : $PATCHED / $TOTAL total"
+# Lancer tous les tests du chart en une commande
+helm unittest devops-news-v2
+
+# Mode verbose (affiche chaque test individuellement)
+helm unittest devops-news-v2 --verbose
+
+# Générer un rapport JUnit (pour l'intégration CI/CD)
+helm unittest devops-news-v2 --output-type JUnit --output-file test-results.xml
+cat test-results.xml
+```
+
+La sortie doit ressembler à :
+
+```
+### Chart [ devops-news ] devops-news-v2
+
+ PASS  Backend — Deployment et Service     tests/backend_test.yaml
+ PASS  Redis — StatefulSet et Secret       tests/redis_test.yaml
+ PASS  Cleaner — CronJob conditionnel      tests/cleaner_test.yaml
+ PASS  Labels standards                    tests/labels_test.yaml
+
+Charts:      1 passed, 0 failed
+Test Suites: 4 passed, 0 failed
+Tests:       24 passed, 0 failed
+```
+
+---
+
+## Étape 9 : Intégration dans un pipeline CI/CD
+
+### 9.1 GitHub Actions
+
+Créez `.github/workflows/helm-test.yml` dans votre dépôt :
+
+```yaml
+name: Helm Unit Tests
+
+on:
+  push:
+    paths:
+      - 'helm/devops-news-v2/**'
+  pull_request:
+    paths:
+      - 'helm/devops-news-v2/**'
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Run helm-unittest
+        run: |
+          docker run --rm \
+            -v $(pwd)/helm:/apps \
+            helmunittest/helm-unittest \
+            devops-news-v2 \
+            --output-type JUnit \
+            --output-file /apps/test-results.xml
+
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: helm/test-results.xml
+```
+
+### 9.2 Placer `helm unittest` dans la chaîne de validation
+
+L'ordre recommandé dans un pipeline CI Helm :
+
+```
+1. helm lint          ← Syntaxe et structure
+2. helm unittest      ← Logique des templates (ce lab)
+3. helm template      ← Rendu final sans cluster
+4. helm install --dry-run  ← Validation côté API server
+5. helm push (OCI)    ← Publication (Lab 3, Étape 9)
 ```
 
 ---
 
 ## ✅ Validation finale
 
-1. Les annotations de sécurité sont présentes sur tous les Deployments, StatefulSets et CronJobs.
-2. Les overlays Dev et Prod diffèrent bien en termes de réplicas.
-3. `kubectl kustomize overlays/dev` génère un YAML valide sans erreur.
+```bash
+helm unittest devops-news-v2 --verbose
+```
+
+Vérifiez que :
+
+1. Toutes les suites passent (zéro `FAIL`).
+2. Le test `redis.enabled: false` confirme bien `hasDocuments: 0`.
+3. Le test de base64 du Secret passe avec le bon encodage.
+4. Le rapport JUnit est généré sans erreur.
+
+**Défi bonus :** Écrivez un test qui vérifie que le schéma JSON (`values.schema.json` du Lab 5) rejette bien une valeur `backend.replicas: 0` (en dessous du `minimum: 1`). Utilisez l'assertion `failedTemplate`.
+
+```yaml
+- it: "doit échouer si backend.replicas est inférieur à 1"
+  set:
+    backend.replicas: 0
+  asserts:
+    - failedTemplate:
+        errorMessage: "backend.replicas"
+```
 
 ---
 
 ## Nettoyage
 
+Aucun cluster utilisé dans ce lab — aucun nettoyage nécessaire.
+
 ```bash
-helm uninstall news-patched -n devops-news-lab6
-kubectl delete -k helm/kustomize-hybrid/overlays/dev
-kubectl delete -k helm/kustomize-hybrid/overlays/prod
-kubectl delete namespace devops-news-lab6 devops-news-dev devops-news-prod
+# Optionnel : supprimer le rapport JUnit
+rm -f helm/test-results.xml
 ```
