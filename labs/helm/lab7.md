@@ -93,7 +93,7 @@ patches:
   - path: patches/security-annotations.yaml
     target:
       kind: StatefulSet
-  - path: patches/security-annotations.yaml
+  - path: patches/security-annotations-cronjob.yaml
     target:
       kind: CronJob
 ```
@@ -116,7 +116,27 @@ spec:
         security.corporate.com/scan-date: "2026-01-01"
 ```
 
-### 2.4 Créer le script wrapper
+### 2.4 Créer le patch d'annotations pour les CronJobs
+
+Les CronJobs ont une structure différente des Deployments (le template de Pod est imbriqué sous `spec.jobTemplate.spec.template`). Créez `helm/post-render/patches/security-annotations-cronjob.yaml` :
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: placeholder
+spec:
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            security.corporate.com/scanned: "true"
+            security.corporate.com/team: "platform"
+            security.corporate.com/scan-date: "2026-01-01"
+```
+
+### 2.5 Créer le script wrapper
 
 Helm ne sait pas parler directement à Kustomize (Helm envoie un flux YAML continu, Kustomize attend un fichier). Nous avons besoin d'un script intermédiaire.
 
@@ -137,14 +157,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cat > "${SCRIPT_DIR}/all.yaml"
 
 # Lancer Kustomize et envoyer le résultat vers STDOUT (récupéré par Helm)
-kustomize build "${SCRIPT_DIR}"
+if command -v kustomize &> /dev/null; then
+  kustomize build "${SCRIPT_DIR}"
+else
+  kubectl kustomize "${SCRIPT_DIR}"
+fi
 ```
 
 ```bash
 chmod +x helm/post-render/kustomize-wrapper.sh
 ```
 
-### 2.5 Tester le post-renderer
+### 2.6 Tester le post-renderer
 
 ```bash
 kubectl create namespace devops-news-lab6
@@ -157,7 +181,7 @@ helm install news-patched ./devops-news-v3 \
 
 Vous devriez voir les annotations de sécurité dans le YAML généré.
 
-### 2.6 Déploiement réel
+### 2.7 Déploiement réel
 
 ```bash
 helm install news-patched ./devops-news-v3 \
@@ -217,8 +241,10 @@ resources:
 
 namespace: devops-news-dev
 
-commonLabels:
-  env: dev
+labels:
+  - pairs:
+      env: dev
+    includeSelectors: true
 
 patches:
   # Réduire les réplicas en dev
@@ -263,9 +289,11 @@ resources:
 
 namespace: devops-news-prod
 
-commonLabels:
-  env: prod
-  tier: gold
+labels:
+  - pairs:
+      env: prod
+      tier: gold
+    includeSelectors: true
 
 patches:
   # Haute disponibilité en prod

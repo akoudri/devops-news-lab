@@ -435,7 +435,7 @@ tests:
     template: "templates/backend.yaml"
     release:
       # Nom volontairement long pour tester le trunc
-      name: "this-is-a-very-long-release-name-that-exceeds-the-limit"
+      name: "this-is-a-very-long-release-name-that-exceeds"
     asserts:
       - matchRegex:
           path: metadata.name

@@ -369,7 +369,7 @@ Ajoutez le bloc `dependencies` à la fin de `devops-news/Chart.yaml` :
 ```yaml
 dependencies:
   - name: redis
-    version: "19.x.x"           # Contrainte SemVer — accepte toutes les 19.x.x
+    version: "25.x.x"           # Contrainte SemVer — accepte toutes les 25.x.x
     repository: "oci://registry-1.docker.io/bitnamicharts"
     condition: redis.enabled     # La même clé que votre values.yaml existant
     alias: redis                 # Nom utilisé pour accéder aux values du sous-chart
@@ -385,7 +385,7 @@ helm dependency update ./devops-news
 
 # Vérifier ce qui a été téléchargé
 ls devops-news/charts/
-# → redis-19.x.x.tgz
+# → redis-25.x.x.tgz
 
 # Inspecter le fichier de verrouillage généré
 cat devops-news/Chart.lock
