@@ -1,0 +1,39 @@
+# Images Docker
+images:
+  repoAccount: "pueblo2708"
+  pullPolicy: IfNotPresent
+  tags:
+    backend: "latest"
+    frontend: "latest"
+    cleaner: "latest"
+
+# Backend (API Flask)
+backend:
+  replicas: 2
+  logLevel: "INFO"
+  service:
+    type: ClusterIP
+    port: 5000
+  resources: {}
+
+# Frontend (Nginx)
+frontend:
+  replicas: 1
+  service:
+    type: LoadBalancer
+    port: 80
+  resources: {}
+
+# Redis
+redis:
+  enabled: true
+  password: "supersecret"
+  storage: "1Gi"
+  storageClassName: "standard-rwo"
+  service:
+    port: 6379
+
+# Cleaner (CronJob)
+cleaner:
+  schedule: "*/2 * * * *"
+  maxAgeSeconds: 3600
