@@ -1,0 +1,61 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# On hérite de la base
+resources:
+  - ../../base
+
+# 1. Isolation
+namespace: ali-news
+nameSuffix: -dev
+
+# 2. Identification
+commonLabels:
+  env: dev
+
+# 3. Modification de la configuration (écrase la valeur de la base)
+configMapGenerator:
+  - name: backend-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=DEBUG
+  - name: nginx-config
+    files:
+      - default.conf=nginx.conf
+
+# 4. Patching (Modification ciblée des YAMLs)
+patches:
+  - target:
+      kind: Deployment
+      name: backend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: "redis-dev"
+  - target:
+      kind: CronJob
+      name: new-cleaner
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/env/0/value
+        value: "redis-dev"
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes
+        value:
+          - name: nginx-config
+            configMap:
+              name: nginx-config
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts
+        value:
+          - name: nginx-config
+            mountPath: /etc/nginx/conf.d/default.conf
+            subPath: default.conf
