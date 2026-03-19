@@ -1,0 +1,1 @@
+Importer les manifests du projet kubernetes et les variabiliser selon les variables définies dans le fichiers values.yaml
