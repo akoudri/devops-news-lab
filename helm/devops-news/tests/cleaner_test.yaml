@@ -1,0 +1,50 @@
+suite: "Cleaner — CronJob conditionnel"
+
+templates:
+  - "templates/cleaner.yaml"
+
+tests:
+
+  - it: "doit creer le CronJob quand cleaner.enabled est true"
+    set:
+      cleaner.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CronJob
+
+  - it: "ne doit rien generer quand cleaner.enabled est false"
+    set:
+      cleaner.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "doit utiliser le schedule configure"
+    set:
+      cleaner.enabled: true
+      cleaner.schedule: "0 3 * * *"
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+
+  - it: "doit injecter MAX_AGE_SECONDS depuis les values"
+    set:
+      cleaner.enabled: true
+      cleaner.maxAgeSeconds: 7200
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: MAX_AGE_SECONDS
+            value: "7200"
+
+  - it: "doit avoir restartPolicy a OnFailure"
+    set:
+      cleaner.enabled: true
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.restartPolicy
+          value: OnFailure

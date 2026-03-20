@@ -1,0 +1,65 @@
+suite: "Redis — StatefulSet, Service et Secret"
+
+tests:
+
+  # -- Activation conditionnelle --
+  - it: "doit creer le StatefulSet Redis quand redis.enabled est true"
+    template: "templates/redis.yaml"
+    set:
+      redis.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: StatefulSet
+        documentIndex: 1
+
+  - it: "ne doit rien generer quand redis.enabled est false"
+    template: "templates/redis.yaml"
+    set:
+      redis.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "ne doit pas creer le Secret Redis quand redis.enabled est false"
+    template: "templates/redis-secret.yaml"
+    set:
+      redis.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # -- Configuration du stockage --
+  - it: "doit utiliser la taille de stockage configuree"
+    template: "templates/redis.yaml"
+    set:
+      redis.enabled: true
+      redis.storage: "5Gi"
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: "5Gi"
+        documentIndex: 1
+
+  - it: "doit utiliser la storageClassName configuree"
+    template: "templates/redis.yaml"
+    set:
+      redis.enabled: true
+      redis.storageClassName: "premium-rwo"
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: "premium-rwo"
+        documentIndex: 1
+
+  # -- Secret --
+  - it: "le Secret doit encoder le mot de passe en base64"
+    template: "templates/redis-secret.yaml"
+    set:
+      redis.enabled: true
+      redis.password: "mysecretpassword"
+    asserts:
+      - equal:
+          path: data.password
+          value: "bXlzZWNyZXRwYXNzd29yZA=="

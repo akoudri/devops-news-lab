@@ -1,0 +1,45 @@
+suite: "Labels standards — verification des helpers"
+
+tests:
+
+  - it: "le Deployment backend doit avoir les labels app.kubernetes.io standards"
+    template: "templates/backend.yaml"
+    release:
+      name: myapp
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: backend
+        documentIndex: 0
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: myapp
+        documentIndex: 0
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+        documentIndex: 0
+
+  - it: "le nom du Deployment doit etre release-backend (trunc a 63 chars)"
+    template: "templates/backend.yaml"
+    release:
+      name: "this-is-a-very-long-release-name-that-exceeds"
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        documentIndex: 0
+
+  - it: "les selectorLabels doivent correspondre entre Deployment et Service"
+    template: "templates/backend.yaml"
+    release:
+      name: test
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: backend
+        documentIndex: 1
+      - equal:
+          path: spec.selector["app.kubernetes.io/instance"]
+          value: test
+        documentIndex: 1
