@@ -15,11 +15,13 @@ backend:
     type: ClusterIP
     port: 5000
   resources: {}
-  extraEnv:
-    - name: FEATURE_FLAG_X
-      value: "true"
-    - name: SENTRY_DSN
-      value: "https://xxx@sentry.io/123"
+  extraEnv: []
+  # Exemple d'utilisation :
+  # extraEnv:
+  #   - name: FEATURE_FLAG_X
+  #     value: "true"
+  #   - name: SENTRY_DSN
+  #     value: "https://xxx@sentry.io/123"
 
 # Frontend (Nginx)
 frontend:
@@ -27,7 +29,13 @@ frontend:
   service:
     type: LoadBalancer
     port: 80
-  resources: {}
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
 
 # Redis
 redis:
@@ -40,5 +48,6 @@ redis:
 
 # Cleaner (CronJob)
 cleaner:
+  enabled: true
   schedule: "*/2 * * * *"
   maxAgeSeconds: 3600

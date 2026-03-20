@@ -1,0 +1,63 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "devops-news.fullname" (dict "root" . "component" "redis") }}
+  labels:
+    {{- include "devops-news.labels" (dict "root" . "component" "redis") | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.redis.service.port }}
+      targetPort: {{ .Values.redis.service.port }}
+  selector:
+    {{- include "devops-news.selectorLabels" (dict "root" . "component" "redis") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "devops-news.fullname" (dict "root" . "component" "redis") }}
+  labels:
+    {{- include "devops-news.labels" (dict "root" . "component" "redis") | nindent 4 }}
+spec:
+  serviceName: {{ include "devops-news.fullname" (dict "root" . "component" "redis") }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "devops-news.selectorLabels" (dict "root" . "component" "redis") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "devops-news.selectorLabels" (dict "root" . "component" "redis") | nindent 8 }}
+    spec:
+      containers:
+        - name: redis
+          image: redis:6.0-alpine
+          command:
+            - redis-server
+            - "--requirepass"
+            - "$(REDIS_PASSWORD)"
+            - "--appendonly"
+            - "yes"
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "devops-news.redisSecretName" . }}
+                  key: password
+          ports:
+            - containerPort: {{ .Values.redis.service.port }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  {{- with .Values.redis }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .storageClassName | quote }}
+        resources:
+          requests:
+            storage: {{ .storage }}
+  {{- end }}
+{{- end }}

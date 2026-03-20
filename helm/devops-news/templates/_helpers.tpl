@@ -7,8 +7,8 @@ Utilisation : {{ include "devops-news.fullname" (dict "root" . "component" "back
 {{- end }}
 
 {{/*
-Labels standards Kubernetes recommandés par la communauté.
-À inclure dans metadata.labels de toutes les ressources.
+Labels standards Kubernetes recommandes par la communaute.
+A inclure dans metadata.labels de toutes les ressources.
 Utilisation : {{ include "devops-news.labels" (dict "root" . "component" "backend") }}
 */}}
 {{- define "devops-news.labels" -}}
@@ -20,7 +20,7 @@ helm.sh/chart: {{ printf "%s-%s" .root.Chart.Name .root.Chart.Version }}
 {{- end }}
 
 {{/*
-Selector labels (sous-ensemble des labels, utilisé dans spec.selector.matchLabels).
+Selector labels (sous-ensemble des labels, utilise dans spec.selector.matchLabels).
 */}}
 {{- define "devops-news.selectorLabels" -}}
 app.kubernetes.io/name: {{ .component }}

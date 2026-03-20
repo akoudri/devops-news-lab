@@ -1,6 +1,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: backend-config
+  name: {{ include "devops-news.fullname" (dict "root" . "component" "frontend-config") }}
+  labels:
+    {{- include "devops-news.labels" (dict "root" . "component" "frontend") | nindent 4 }}
 data:
-  LOG_LEVEL: "DEBUG"
+  nginx.conf: |
+    {{- .Files.Get "config/nginx.conf" | nindent 4 }}

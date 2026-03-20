@@ -1,10 +1,10 @@
+{{- if .Values.cleaner.enabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ .Release.Name }}-cleaner
+  name: {{ include "devops-news.fullname" (dict "root" . "component" "cleaner") }}
   labels:
-    app.kubernetes.io/name: cleaner
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    {{- include "devops-news.labels" (dict "root" . "component" "cleaner") | nindent 4 }}
 spec:
   schedule: {{ .Values.cleaner.schedule | quote }}
   jobTemplate:
@@ -18,13 +18,14 @@ spec:
               imagePullPolicy: {{ .Values.images.pullPolicy }}
               env:
                 - name: REDIS_HOST
-                  value: "{{ .Release.Name }}-redis"
+                  value: {{ include "devops-news.fullname" (dict "root" . "component" "redis") | quote }}
                 - name: REDIS_PORT
                   value: {{ .Values.redis.service.port | quote }}
                 - name: REDIS_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: {{ .Release.Name }}-redis-secret
+                      name: {{ include "devops-news.redisSecretName" . }}
                       key: password
                 - name: MAX_AGE_SECONDS
                   value: {{ .Values.cleaner.maxAgeSeconds | quote }}
+{{- end }}
