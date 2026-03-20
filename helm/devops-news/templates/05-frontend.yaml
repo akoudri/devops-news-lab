@@ -26,6 +26,14 @@ spec:
             - containerPort: 80
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: {{ include "devops-news.fullname" (dict "root" . "component" "frontend-config") }}
 ---
 apiVersion: v1
 kind: Service
