@@ -1,0 +1,49 @@
+🚀 DevOps-News {{ .Chart.AppVersion }} déployé avec succès !
+Release : {{ .Release.Name }}
+Namespace : {{ .Release.Namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📡 Accéder à l'application :
+
+{{- if eq .Values.frontend.service.type "LoadBalancer" }}
+
+  Attendez l'assignation de l'IP externe :
+    kubectl get svc {{ include "devops-news.fullname" (dict "root" . "component" "frontend") }} \
+      --namespace {{ .Release.Namespace }} -w
+
+  Une fois l'IP assignée, ouvrez : http://<EXTERNAL-IP>
+
+{{- else if eq .Values.frontend.service.type "ClusterIP" }}
+
+  Le service est accessible en interne uniquement.
+  Utilisez un port-forward pour tester :
+    kubectl port-forward svc/{{ include "devops-news.fullname" (dict "root" . "component" "frontend") }} \
+      8080:80 --namespace {{ .Release.Namespace }}
+
+  Puis ouvrez : http://localhost:8080
+
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 Commandes utiles :
+
+  # Voir les logs du backend
+  kubectl logs -l app.kubernetes.io/name=backend -n {{ .Release.Namespace }} -f
+
+  # Vérifier la santé de l'API
+  kubectl port-forward svc/{{ include "devops-news.fullname" (dict "root" . "component" "backend") }} \
+    5001:5000 -n {{ .Release.Namespace }} &
+  curl http://localhost:5001/health
+
+  # Historique et rollback
+  helm history {{ .Release.Name }} -n {{ .Release.Namespace }}
+  helm rollback {{ .Release.Name }} <REVISION> -n {{ .Release.Namespace }}
+
+{{- if .Values.cleaner.enabled }}
+
+  # Déclencher le nettoyage manuellement
+  kubectl create job --from=cronjob/{{ include "devops-news.fullname" (dict "root" . "component" "cleaner") }} \
+    manual-clean -n {{ .Release.Namespace }}
+{{- end }}

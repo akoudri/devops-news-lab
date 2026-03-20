@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "devops-news.fullname" (dict "root" . "component" "test-redis") }}
+  labels:
+    {{- include "devops-news.labels" (dict "root" . "component" "test") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  containers:
+    - name: redis-check
+      image: redis:6.0-alpine
+      env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "devops-news.redisSecretName" . }}
+              key: password
+      command:
+        - sh
+        - -c
+        - |
+          echo "Test de connectivité Redis..."
+          RESULT=$(redis-cli \
+            -h {{ include "devops-news.fullname" (dict "root" . "component" "redis") }} \
+            -p {{ .Values.redis.service.port }} \
+            -a "$REDIS_PASSWORD" \
+            --no-auth-warning PING)
+          echo "Réponse Redis : $RESULT"
+          if [ "$RESULT" = "PONG" ]; then
+            echo "✅ Redis accessible"
+            exit 0
+          else
+            echo "❌ Redis inaccessible"
+            exit 1
+          fi

@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "devops-news.fullname" (dict "root" . "component" "test-backend-health") }}
+  labels:
+    {{- include "devops-news.labels" (dict "root" . "component" "test") | nindent 4 }}
+  annotations:
+    # Cette annotation indique à Helm que ce Pod est un test
+    "helm.sh/hook": test
+    # Nettoyer le Pod après le test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  containers:
+    - name: health-check
+      image: curlimages/curl:latest
+      command:
+        - sh
+        - -c
+        - |
+          echo "Test de santé du backend DevOps-News..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://{{ include "devops-news.fullname" (dict "root" . "component" "backend") }}:{{ .Values.backend.service.port }}/health)
+          echo "Code HTTP reçu : $RESPONSE"
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ Backend opérationnel"
+            exit 0
+          else
+            echo "❌ Backend non opérationnel (code $RESPONSE)"
+            exit 1
+          fi
