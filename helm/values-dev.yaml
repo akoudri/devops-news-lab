@@ -1,0 +1,17 @@
+# Environnement de développement — Économique et bavard
+backend:
+  replicas: 1
+  logLevel: "DEBUG"
+  service:
+    type: ClusterIP
+
+frontend:
+  replicas: 1
+  service:
+    type: ClusterIP # Pas de LoadBalancer en dev (coût GKE)
+
+redis:
+  password: "dev-secret"
+
+cleaner:
+  schedule: "*/5 * * * *" # Nettoyage plus fréquent pour les tests

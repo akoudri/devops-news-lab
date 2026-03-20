@@ -1,0 +1,25 @@
+# Environnement de production — Robuste et sécurisé
+backend:
+  replicas: 3
+  logLevel: "INFO"
+  service:
+    type: ClusterIP
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+
+frontend:
+  replicas: 2
+  service:
+    type: LoadBalancer # IP publique en prod
+
+redis:
+  password: "prod-supersecret-changeme"
+  storage: 2Gi # Plus d'espace en prod
+
+cleaner:
+  schedule: "0 * * * *" # Nettoyage toutes les heures

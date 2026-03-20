@@ -1,18 +1,12 @@
 apiVersion: v2
 name: devops-news
-description: Application de démonstration pour la formation Helm (Flask + Redis + Nginx)
+description: Application de demonstration pour la formation Helm (Flask + Redis + Nginx)
 type: application
-
-# Version du package Helm (SemVer)
 version: 0.1.0
-
-# Version de l'application déployée
 appVersion: "1.0.0"
-
 maintainers:
   - name: Ali Koudri
     email: ali.koudri@janus-academy.fr
-
 keywords:
   - demo
   - flask
