@@ -6,4 +6,4 @@ metadata:
     {{- include "devops-news.labels" (dict "root" . "component" "frontend") | nindent 4 }}
 data:
   nginx.conf: |
-    {{- .Files.Get "config/nginx.conf" | nindent 4 }}
+    {{- .Files.Get "config/nginx.conf" | replace "BACKEND_SERVICE" (include "devops-news.fullname" (dict "root" . "component" "backend")) | nindent 4 }}
