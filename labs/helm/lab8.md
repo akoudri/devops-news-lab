@@ -647,4 +647,4 @@ Vous avez parcouru l'ensemble de la chaîne de valeur du déploiement Kubernetes
 | **Lab 6** | Intégration Helm + Kustomize (post-rendering et hybride) |
 | **Lab 7** | GitOps avec Argo CD : self-healing, drift detection, secrets |
 
-**La prochaine étape logique :** Explorer les **Umbrella Charts** pour orchestrer une plateforme complète de microservices en une seule commande, et les **ApplicationSets** Argo CD pour gérer des déploiements à grande échelle sur des dizaines de clusters.
+**La suite :** Le [Lab 9](lab9.md) explore les **Umbrella Charts** et **Helmfile** pour orchestrer une plateforme complète de microservices — deux approches complémentaires au GitOps que vous venez de maîtriser.

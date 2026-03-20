@@ -14,9 +14,10 @@ Parcours de labs pratiques pour la formation Helm, basés sur l'application **De
 | [Lab 6](lab6.md) | 6 | Tests unitaires avec `helm-unittest` | 1h15 - 1h30 |
 | [Lab 7](lab7.md) | 7 | Intégration avec Kustomize (post-rendering, hybride) | 1h - 1h15 |
 | [Lab 8](lab8.md) | 8 | GitOps avec Argo CD (drift avancé, self-healing, secrets) | 1h30 - 2h |
+| [Lab 9](lab9.md) | 9 | Umbrella Chart & Helmfile (orchestration multi-services) | 1h30 - 2h |
 
 
-**Durée totale estimée :** 10h - 12h
+**Durée totale estimée :** 12h - 14h
 
 ## Pré-requis
 
@@ -25,6 +26,7 @@ Parcours de labs pratiques pour la formation Helm, basés sur l'application **De
 - `kustomize` installé (Lab 7)
 - `argocd` CLI installé (Lab 8)
 - Accès à un dépôt Git (Lab 8)
+- `helmfile` installé (Lab 9)
 
 ## Organisation des fichiers
 
@@ -39,6 +41,7 @@ helm/
 ├── lab6.md                 ← Lab 6
 ├── lab7.md                 ← Lab 7
 ├── lab8.md                 ← Lab 8
+├── lab9.md                 ← Lab 9
 ├── values-dev.yaml         ← Valeurs Dev (Lab 2)
 ├── values-prod.yaml        ← Valeurs Prod (Lab 2)
 ├── values-common.yaml      ← Valeurs communes (Lab 2)
@@ -47,5 +50,7 @@ helm/
 ├── devops-news-v2/         ← Chart produit au Lab 4 (+ tests unitaires Lab 6)
 ├── devops-news-v3/         ← Chart produit au Lab 5
 ├── post-render/            ← Scripts post-renderer (Lab 7)
-└── environments/           ← Applications Argo CD dev/prod (Lab 8)
+├── environments/           ← Applications Argo CD dev/prod (Lab 8)
+├── devops-news-platform/   ← Umbrella Chart (Lab 9)
+└── helmfile/               ← Configuration Helmfile (Lab 9)
 ```

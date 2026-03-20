@@ -54,8 +54,9 @@ Formation approfondie à Helm, de la découverte au GitOps avec Argo CD. Voir le
 | [Lab 6](labs/helm/lab6.md) | Tests Unitaires | 1h15 - 1h30 | Tests Unitaires avec HelmTest |
 | [Lab 7](labs/helm/lab7.md) | Intégration avec Kustomize | 1h00 - 1h15 | Post-rendering et approche hybride Helm + Kustomize |
 | [Lab 8](labs/helm/lab8.md) | GitOps avec Argo CD | 1h15 - 1h30 | Déploiement déclaratif, self-healing, drift detection et secrets GitOps-compatible |
+| [Lab 9](labs/helm/lab9.md) | Umbrella Chart & Helmfile | 1h30 - 2h00 | Orchestration multi-services : chart parapluie et gestion déclarative multi-releases |
 
-**Durée totale estimée :** 9h - 10h
+**Durée totale estimée :** 11h - 12h
 
 ## Démarrage rapide
 
@@ -73,4 +74,5 @@ L'application est accessible sur http://localhost:8080.
 - `kubectl` configuré
 - `helm` installé (parcours K8s Lab 3 + parcours Helm)
 - `kustomize` installé (parcours Helm Lab 6)
-- `argocd` CLI installé (parcours Helm Lab 7)
+- `argocd` CLI installé (parcours Helm Lab 8)
+- `helmfile` installé (parcours Helm Lab 9)
