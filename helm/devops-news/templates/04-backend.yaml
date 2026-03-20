@@ -1,44 +1,55 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend
+  name: {{ .Release.Name }}-backend
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: backend
 spec:
-  replicas: 1 # On veut de la haute disponibilité !
+  replicas: {{ .Values.backend.replicas }}
   selector:
     matchLabels:
-      app: backend
+      app.kubernetes.io/name: backend
+      app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: backend
+        app.kubernetes.io/name: backend
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: backend
     spec:
       containers:
         - name: api
-          image: pueblo2708/devops-news-api:latest
+          image: "{{ .Values.images.repoAccount }}/devops-news-api:{{ .Values.images.tags.backend }}"
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
           ports:
-            - containerPort: 5000
+            - containerPort: {{ .Values.backend.service.port }}
           env:
             - name: REDIS_HOST
-              value: "redis"
+              value: "{{ .Release.Name }}-redis"
+            - name: REDIS_PORT
+              value: {{ .Values.redis.service.port | quote }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: redis-secret
+                  name: {{ .Release.Name }}-redis-secret
                   key: password
             - name: LOG_LEVEL
-              valueFrom:
-                configMapKeyRef:
-                  name: backend-config
-                  key: LOG_LEVEL
+              value: {{ .Values.backend.logLevel | quote }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: backend
+  name: {{ .Release.Name }}-backend
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
-  type: ClusterIP # Accessible uniquement dans le cluster
+  type: {{ .Values.backend.service.type }}
   selector:
-    app: backend
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/instance: {{ .Release.Name }}
   ports:
-    - port: 5000
-      targetPort: 5000
+    - port: {{ .Values.backend.service.port }}
+      targetPort: {{ .Values.backend.service.port }}

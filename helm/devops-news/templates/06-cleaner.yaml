@@ -1,7 +1,10 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: news-cleaner
+  name: {{ .Release.Name }}-cleaner
+  labels:
+    app.kubernetes.io/name: cleaner
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   schedule: {{ .Values.cleaner.schedule | quote }}
   jobTemplate:
@@ -11,12 +14,17 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: cleaner
-              image: pueblo2708/devops-news-cleaner:latest
+              image: "{{ .Values.images.repoAccount }}/devops-news-cleaner:{{ .Values.images.tags.cleaner }}"
+              imagePullPolicy: {{ .Values.images.pullPolicy }}
               env:
                 - name: REDIS_HOST
-                  value: "redis"
+                  value: "{{ .Release.Name }}-redis"
+                - name: REDIS_PORT
+                  value: {{ .Values.redis.service.port | quote }}
                 - name: REDIS_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: redis-secret
+                      name: {{ .Release.Name }}-redis-secret
                       key: password
+                - name: MAX_AGE_SECONDS
+                  value: {{ .Values.cleaner.maxAgeSeconds | quote }}

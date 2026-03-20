@@ -1,31 +1,45 @@
+# NOTE : L'image devops-news-front proxifie en dur vers http://backend:5000
+# Dans un deploiement Helm, le service backend se nomme {{ .Release.Name }}-backend.
+# Cette limitation devra etre corrigee en passant le nom du backend via une variable
+# d'environnement Nginx dans une version future du chart.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
+  name: {{ .Release.Name }}-frontend
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.frontend.replicas }}
   selector:
     matchLabels:
-      app: frontend
+      app.kubernetes.io/name: frontend
+      app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: frontend
+        app.kubernetes.io/name: frontend
+        app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       containers:
         - name: web
-          image: pueblo2708/devops-news-front:latest
+          image: "{{ .Values.images.repoAccount }}/devops-news-front:{{ .Values.images.tags.frontend }}"
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
           ports:
             - containerPort: 80
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend
+  name: {{ .Release.Name }}-frontend
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
-  type: LoadBalancer # C'est ce qui nous donne l'IP Publique
+  type: {{ .Values.frontend.service.type }}
   selector:
-    app: frontend
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/instance: {{ .Release.Name }}
   ports:
-    - port: 80
+    - port: {{ .Values.frontend.service.port }}
       targetPort: 80
