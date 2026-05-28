@@ -1,0 +1,96 @@
+# ---------------------------------------------------------------------------
+# StorageClass pour volume LOCAL :
+#  - no-provisioner       : pas de provisioning dynamique, les PV sont créés à la main
+#  - WaitForFirstConsumer : la liaison PVC->PV est différée jusqu'à ce que le pod
+#                           soit programmé, pour que le scheduler respecte la
+#                           nodeAffinity du PV (OBLIGATOIRE pour le stockage local)
+# ---------------------------------------------------------------------------
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+---
+# ---------------------------------------------------------------------------
+# Le PersistentVolume local, épinglé à un nœud précis.
+#  - local.path : doit EXISTER sur le nœud avant l'apply (cf. prérequis ci-dessous)
+#  - nodeAffinity : pin obligatoire pour un PV de type local
+#  - reclaimPolicy Retain : le PV n'est pas recyclé automatiquement au delete du PVC
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: redis-data-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /mnt/disks/redis-data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - mon-cluster-worker # <-- ADAPTE au nom réel (kubectl get nodes)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: redis
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+spec:
+  serviceName: "redis"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:6.0-alpine
+          command:
+            [
+              "redis-server",
+              "--requirepass",
+              "$(REDIS_PASSWORD)",
+              "--appendonly",
+              "yes",
+            ]
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "local-storage" # <-- au lieu de "standard-rwo" (GKE)
+        resources:
+          requests:
+            storage: 1Gi
