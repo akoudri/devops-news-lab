@@ -34,7 +34,7 @@ tests:
         documentIndex: 0
 
   # -- Variables d'environnement --
-  - it: "doit injecter REDIS_HOST avec le nom de la release"
+  - it: "doit injecter REDIS_HOST avec le service du sous-chart Redis"
     release:
       name: production
     asserts:
@@ -42,7 +42,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: REDIS_HOST
-            value: "production-redis"
+            value: "production-redis-master"
         documentIndex: 0
 
   - it: "doit injecter LOG_LEVEL depuis les values"
@@ -56,7 +56,7 @@ tests:
             value: "DEBUG"
         documentIndex: 0
 
-  - it: "doit referencer le Secret Redis pour REDIS_PASSWORD"
+  - it: "doit referencer le Secret Redis du sous-chart pour REDIS_PASSWORD"
     release:
       name: test
     asserts:
@@ -66,8 +66,8 @@ tests:
             name: REDIS_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: test-redis-secret
-                key: password
+                name: test-redis
+                key: redis-password
         documentIndex: 0
 
   # -- Image Docker --

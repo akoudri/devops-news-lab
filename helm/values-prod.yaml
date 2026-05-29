@@ -18,8 +18,12 @@ frontend:
     type: LoadBalancer # IP publique en prod
 
 redis:
-  password: "prod-supersecret-changeme"
-  storage: 2Gi # Plus d'espace en prod
+  auth:
+    password: "prod-supersecret-changeme"
+  master:
+    persistence:
+      size: 2Gi # Plus d'espace en prod
+      storageClass: standard-rwo # StorageClass GKE
 
 cleaner:
   schedule: "0 * * * *" # Nettoyage toutes les heures

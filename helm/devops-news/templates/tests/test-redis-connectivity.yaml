@@ -17,15 +17,15 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ include "devops-news.redisSecretName" . }}
-              key: password
+              key: redis-password
       command:
         - sh
         - -c
         - |
           echo "Test de connectivité Redis..."
           RESULT=$(redis-cli \
-            -h {{ include "devops-news.fullname" (dict "root" . "component" "redis") }} \
-            -p {{ .Values.redis.service.port }} \
+            -h {{ include "devops-news.redisHost" . }} \
+            -p {{ .Values.redis.master.service.ports.redis }} \
             -a "$REDIS_PASSWORD" \
             --no-auth-warning PING)
           echo "Réponse Redis : $RESULT"

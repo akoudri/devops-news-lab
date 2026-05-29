@@ -37,14 +37,26 @@ frontend:
       cpu: "50m"
       memory: "64Mi"
 
-# Redis
+# Redis (sous-chart Bitnami — voir dependencies dans Chart.yaml)
+# Ces valeurs sont transmises au sous-chart sous la cle "redis".
 redis:
+  # Active/desactive le sous-chart (lu par "condition: redis.enabled").
   enabled: true
-  password: "supersecret"
-  storage: "1Gi"
-  storageClassName: "standard-rwo"
-  service:
-    port: 6379
+  # Instance unique (equivalent de l'ancien StatefulSet a 1 replica).
+  architecture: standalone
+  auth:
+    enabled: true
+    password: "supersecret"
+  master:
+    persistence:
+      enabled: true
+      size: "1Gi"
+      # Vide = StorageClass par defaut du cluster (local: standard/local-path).
+      # En prod GKE, surcharge dans values-prod.yaml (standard-rwo).
+      storageClass: ""
+    service:
+      ports:
+        redis: 6379
 
 # Cleaner (CronJob)
 cleaner:

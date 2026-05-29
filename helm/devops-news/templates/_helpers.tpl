@@ -28,8 +28,15 @@ app.kubernetes.io/instance: {{ .root.Release.Name }}
 {{- end }}
 
 {{/*
-Nom du secret Redis.
+Nom du service Redis expose par le sous-chart Bitnami (architecture standalone).
+*/}}
+{{- define "devops-news.redisHost" -}}
+{{- printf "%s-redis-master" .Release.Name }}
+{{- end }}
+
+{{/*
+Nom du secret Redis genere par le sous-chart Bitnami (cle : redis-password).
 */}}
 {{- define "devops-news.redisSecretName" -}}
-{{- printf "%s-redis-secret" .Release.Name }}
+{{- printf "%s-redis" .Release.Name }}
 {{- end }}

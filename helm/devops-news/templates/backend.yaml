@@ -22,14 +22,14 @@ spec:
             - containerPort: {{ .Values.backend.service.port }}
           env:
             - name: REDIS_HOST
-              value: {{ include "devops-news.fullname" (dict "root" . "component" "redis") | quote }}
+              value: {{ include "devops-news.redisHost" . | quote }}
             - name: REDIS_PORT
-              value: {{ .Values.redis.service.port | quote }}
+              value: {{ .Values.redis.master.service.ports.redis | quote }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "devops-news.redisSecretName" . }}
-                  key: password
+                  key: redis-password
             - name: LOG_LEVEL
               value: {{ .Values.backend.logLevel | quote }}
             {{- range .Values.backend.extraEnv }}

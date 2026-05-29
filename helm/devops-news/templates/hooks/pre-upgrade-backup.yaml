@@ -23,15 +23,15 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "devops-news.redisSecretName" . }}
-                  key: password
+                  key: redis-password
           command:
             - sh
             - -c
             - |
               echo "[pre-upgrade] Sauvegarde des données Redis avant upgrade..."
               COUNT=$(redis-cli \
-                -h {{ include "devops-news.fullname" (dict "root" . "component" "redis") }} \
-                -p {{ .Values.redis.service.port }} \
+                -h {{ include "devops-news.redisHost" . }} \
+                -p {{ .Values.redis.master.service.ports.redis }} \
                 -a "$REDIS_PASSWORD" \
                 --no-auth-warning LLEN devops_news)
               echo "[pre-upgrade] $COUNT news en base avant la mise à jour."
