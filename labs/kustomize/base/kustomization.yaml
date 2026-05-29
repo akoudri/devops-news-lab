@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - 03-redis.yaml
+  - 04-backend.yaml
+  - 05-frontend.yaml
+  - 06-cleaner.yaml
+
+# On définit ici les configurations communes
+configMapGenerator:
+  - name: backend-config
+    literals:
+      - LOG_LEVEL=INFO # Valeur par défaut
+
+secretGenerator:
+  - name: redis-secret
+    literals:
+      - password=c3VwZXJzZWNyZXQ=
