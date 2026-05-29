@@ -1,0 +1,30 @@
+# values-kind.yaml
+wordpressUsername: admin
+wordpressPassword: ChangeMe123!
+wordpressEmail: admin@example.com
+wordpressBlogName: "Mon blog kind"
+
+service:
+  type: ClusterIP
+
+persistence:
+  enabled: true
+  size: 2Gi
+
+mariadb:
+  enabled: true
+  auth:
+    rootPassword: ChangeMe123!
+    password: ChangeMe123!
+  primary:
+    persistence:
+      enabled: true
+      size: 2Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
